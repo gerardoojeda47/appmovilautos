@@ -1,6 +1,11 @@
 // Pantalla de registro de usuario
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+// Cambia esta URL si usas emulador/dispositivo físico o despliegas el backend
+const String backendBaseUrl = 'http://localhost:9001';
 
 class RegistroPage extends StatefulWidget {
   const RegistroPage({super.key});
@@ -15,6 +20,7 @@ class _RegistroPageState extends State<RegistroPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _isLoading = false;
@@ -25,6 +31,7 @@ class _RegistroPageState extends State<RegistroPage> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
@@ -38,34 +45,44 @@ class _RegistroPageState extends State<RegistroPage> {
     });
 
     try {
-      // Verifica si el correo ya está registrado
-      final isRegistered = await Preferences.isEmailRegistered(_emailController.text);
-      if (isRegistered) {
+      // Enviar datos al API
+      final response = await http.post(
+        Uri.parse(getBackendBaseUrl() + '/'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'nombre': _nameController.text,
+          'email': _emailController.text,
+          'password': _passwordController.text,
+        }),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Registro exitoso'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context);
+      } else {
+        // Intenta extraer mensaje de error del backend
+        String errorMsg = 'Error al registrar usuario';
+        try {
+          final data = jsonDecode(response.body);
+          if (data['message'] != null) {
+            errorMsg = data['message'];
+          }
+        } catch (_) {}
         if (!mounted) return;
         setState(() {
-          _errorMessage = 'Este correo electrónico ya está registrado';
+          _errorMessage = errorMsg;
         });
-        return;
       }
-
-      // Guarda las credenciales
-      await Preferences.saveUserCredentials(
-        _emailController.text,
-        _passwordController.text,
-      );
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Registro exitoso'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Error: ${e.toString()}';
+        _errorMessage = 'Error: \\${e.toString()}';
       });
     } finally {
       if (mounted) {
@@ -119,6 +136,25 @@ class _RegistroPageState extends State<RegistroPage> {
                       textAlign: TextAlign.center,
                     ),
                   ),
+                // Campo de nombre
+                TextFormField(
+                  controller: _nameController,
+                  enabled: !_isLoading,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor ingrese su nombre';
+                    }
+                    return null;
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'Nombre',
+                    prefixIcon: const Icon(Icons.person),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 // Campo de correo
                 TextFormField(
                   controller: _emailController,

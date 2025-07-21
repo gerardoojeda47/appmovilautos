@@ -1,5 +1,7 @@
 // Utilidades para guardar y recuperar preferencias del usuario (login, registro, etc)
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class Preferences {
   static const String _emailKey = 'email'; // Clave para el email
@@ -53,5 +55,17 @@ class Preferences {
   static Future<bool> hasUserData() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.containsKey(_emailKey) && prefs.containsKey(_passwordKey);
+  }
+}
+
+String getBackendBaseUrl() {
+  if (kIsWeb) {
+    return 'http://localhost:9001'; // Cambia si tu backend está en otra IP para web
+  } else if (Platform.isAndroid) {
+    return 'http://10.0.2.2:9001'; // Android emulator
+  } else if (Platform.isIOS) {
+    return 'http://localhost:9001'; // iOS simulator
+  } else {
+    return 'http://localhost:9001'; // Por defecto para desktop
   }
 } 

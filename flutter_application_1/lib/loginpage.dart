@@ -4,6 +4,11 @@ import 'package:flutter_application_1/main.dart';
 import 'package:flutter_application_1/preferences.dart';
 import 'package:flutter_application_1/registropage.dart';
 import 'alquilerauto.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+// Cambia esta URL si usas emulador/dispositivo físico o despliegas el backend
+const String backendBaseUrl = 'http://localhost:9001';
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -57,10 +62,17 @@ class _LoginState extends State<Login> {
     });
 
     try {
-      final credentials = await Preferences.getUserCredentials();
-      
-      if (credentials['email'] == _emailController.text && 
-          credentials['password'] == _passwordController.text) {
+      // Enviar datos al API de login
+      final response = await http.post(
+        Uri.parse('${getBackendBaseUrl()}/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': _emailController.text,
+          'password': _passwordController.text,
+        }),
+      );
+
+      if (response.statusCode == 200) {
         // Login exitoso
         await Preferences.setLoggedIn(true);
         if (!mounted) return;
@@ -75,16 +87,23 @@ class _LoginState extends State<Login> {
           MaterialPageRoute(builder: (context) => AlquilerAutoScreen()),
         );
       } else {
-        // Login fallido
+        // Login fallido, intenta extraer mensaje de error del backend
+        String errorMsg = 'Credenciales incorrectas';
+        try {
+          final data = jsonDecode(response.body);
+          if (data['message'] != null) {
+            errorMsg = data['message'];
+          }
+        } catch (_) {}
         if (!mounted) return;
         setState(() {
-          _errorMessage = 'Credenciales incorrectas';
+          _errorMessage = errorMsg;
         });
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Error: ${e.toString()}';
+        _errorMessage = 'Error: \\${e.toString()}';
       });
     } finally {
       if (mounted) {
