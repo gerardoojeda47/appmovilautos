@@ -59,13 +59,6 @@ class Preferences {
 }
 
 String getBackendBaseUrl() {
-  if (kIsWeb) {
-    return 'http://localhost:9001'; // Cambia si tu backend está en otra IP para web
-  } else if (Platform.isAndroid) {
-    return 'http://10.0.2.2:9001'; // Android emulator
-  } else if (Platform.isIOS) {
-    return 'http://localhost:9001'; // iOS simulator
-  } else {
-    return 'http://localhost:9001'; // Por defecto para desktop
-  }
-} 
+  // URL del backend en Render
+  return 'https://backendautos.onrender.com';
+}

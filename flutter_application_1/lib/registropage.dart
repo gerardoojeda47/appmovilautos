@@ -4,8 +4,7 @@ import 'package:flutter_application_1/preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-// Cambia esta URL si usas emulador/dispositivo físico o despliegas el backend
-const String backendBaseUrl = 'http://localhost:9001';
+// Importamos la función getBackendBaseUrl desde preferences.dart
 
 class RegistroPage extends StatefulWidget {
   const RegistroPage({super.key});
@@ -45,35 +44,97 @@ class _RegistroPageState extends State<RegistroPage> {
     });
 
     try {
-      // Enviar datos al API
+      // Construir la URL del endpoint de registro
+      final baseUrl = getBackendBaseUrl();
+      final url = '$baseUrl/api/users/registro';
+      print('URL de registro: $url'); // Debug: Mostrar URL
+      
+      // Verificar la URL base
+      print('URL base del backend: $baseUrl'); // Debug: Mostrar URL base
+      
+      final Map<String, dynamic> requestBody = {
+        'nombre': _nameController.text,
+        'correo': _emailController.text,  // Cambiado de 'email' a 'correo'
+        'contraseña': _passwordController.text,  // Cambiado de 'password' a 'contraseña'
+        'confirmarContraseña': _confirmPasswordController.text,  // Añadido campo faltante
+      };
+      
+      print('Datos de registro: ${jsonEncode(requestBody)}'); // Debug: Mostrar datos
+      
+      print('Datos de registro: ${jsonEncode(requestBody)}'); // Debug: Mostrar datos
+      
+      // Enviar datos al API de registro en Render
       final response = await http.post(
-        Uri.parse(getBackendBaseUrl() + '/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'nombre': _nameController.text,
-          'email': _emailController.text,
-          'password': _passwordController.text,
-        }),
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(requestBody),
       );
+      
+      print('Respuesta del servidor: ${response.statusCode}'); // Debug: Mostrar código de estado
+      print('Cuerpo de la respuesta: ${response.body}'); // Debug: Mostrar cuerpo de la respuesta
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         if (!mounted) return;
+        // Mostrar alerta de éxito
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('Registro exitoso'),
+              content: const Text('Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión con tus credenciales.'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.pop(context); // Volver a la pantalla de login
+                  },
+                  child: const Text('Aceptar'),
+                ),
+              ],
+            );
+          },
+        );
+        // También mostrar un SnackBar
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Registro exitoso'),
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context);
       } else {
         // Intenta extraer mensaje de error del backend
         String errorMsg = 'Error al registrar usuario';
         try {
           final data = jsonDecode(response.body);
-          if (data['message'] != null) {
-            errorMsg = data['message'];
+          if (data['error'] != null) {
+            errorMsg = data['error'];
+            // Mensajes personalizados para errores comunes
+            if (data['error'] == 'El correo ya está registrado') {
+              errorMsg = 'Este correo electrónico ya está en uso. Por favor, utiliza otro.';
+            } else if (data['error'] == 'El nombre de usuario ya está en uso') {
+              errorMsg = 'Este nombre de usuario ya está en uso. Por favor, elige otro.';
+            } else if (data['error'] == 'Las contraseñas no coinciden') {
+              errorMsg = 'Las contraseñas no coinciden. Por favor, verifica.';
+            } else if (data['camposFaltantes'] != null) {
+              final campos = data['camposFaltantes'] as Map<String, dynamic>;
+              final faltantes = campos.entries
+                  .where((e) => e.value == true)
+                  .map((e) => {
+                        'correo': 'correo electrónico',
+                        'contraseña': 'contraseña',
+                        'confirmarContraseña': 'confirmación de contraseña',
+                        'nombre': 'nombre'
+                      }[e.key] ?? e.key)
+                  .join(', ');
+              errorMsg = 'Por favor completa los siguientes campos: $faltantes';
+            }
           }
-        } catch (_) {}
+        } catch (e) {
+          print('Error al procesar la respuesta del servidor: $e');
+        }
         if (!mounted) return;
         setState(() {
           _errorMessage = errorMsg;
@@ -82,8 +143,26 @@ class _RegistroPageState extends State<RegistroPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Error: \\${e.toString()}';
+        _errorMessage = 'Error de conexión: ${e.toString()}';
       });
+      // Mostrar alerta de error de conexión
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Error de conexión'),
+            content: Text('No se pudo conectar con el servidor. Verifica tu conexión a internet e intenta nuevamente.\n\nDetalle: ${e.toString()}'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Aceptar'),
+              ),
+            ],
+          );
+        },
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -276,4 +355,4 @@ class _RegistroPageState extends State<RegistroPage> {
       ),
     );
   }
-} 
+}

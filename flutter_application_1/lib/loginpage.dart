@@ -7,8 +7,7 @@ import 'alquilerauto.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-// Cambia esta URL si usas emulador/dispositivo físico o despliegas el backend
-const String backendBaseUrl = 'http://localhost:9001';
+// Importamos la función getBackendBaseUrl desde preferences.dart
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -62,49 +61,135 @@ class _LoginState extends State<Login> {
     });
 
     try {
-      // Enviar datos al API de login
+      // Construir la URL del endpoint de login
+      final url = '${getBackendBaseUrl()}/api/users/login';
+      print('URL de login: $url'); // Debug: Mostrar URL
+
+      // Crear el cuerpo de la petición con los nombres de campos que espera el backend
+      final Map<String, dynamic> requestBody = {
+        'correo': _emailController.text,  // Cambiado de 'email' a 'correo'
+        'contraseña': _passwordController.text,  // Cambiado de 'password' a 'contraseña'
+      };
+
+      print('Datos de login: ${jsonEncode(requestBody)}'); // Debug: Mostrar datos
+
+      // Enviar datos al API de login en Render
       final response = await http.post(
-        Uri.parse('${getBackendBaseUrl()}/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': _emailController.text,
-          'password': _passwordController.text,
-        }),
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(requestBody),
       );
 
       if (response.statusCode == 200) {
         // Login exitoso
         await Preferences.setLoggedIn(true);
         if (!mounted) return;
+        
+        // Mostrar SnackBar de éxito
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Inicio de sesión exitoso'),
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => AlquilerAutoScreen()),
+        
+        // Mostrar alerta de bienvenida
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('Bienvenido'),
+              content: const Text('Has iniciado sesión correctamente.'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    // Navegar a la pantalla principal después de cerrar el diálogo
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => AlquilerAutoScreen()),
+                    );
+                  },
+                  child: const Text('Continuar'),
+                ),
+              ],
+            );
+          },
         );
+        // No navegamos aquí porque lo haremos después de cerrar el diálogo
       } else {
         // Login fallido, intenta extraer mensaje de error del backend
         String errorMsg = 'Credenciales incorrectas';
         try {
           final data = jsonDecode(response.body);
-          if (data['message'] != null) {
+          if (data['error'] != null) {
+            errorMsg = data['error'];
+            // Mensajes personalizados para errores comunes
+            if (data['error'] == 'Usuario no encontrado') {
+              errorMsg = 'No existe una cuenta con este correo electrónico.';
+            } else if (data['error'] == 'Contraseña incorrecta') {
+              errorMsg = 'La contraseña es incorrecta. Por favor, inténtalo de nuevo.';
+            } else if (data['error'] == 'Cuenta no verificada') {
+              errorMsg = 'Por favor, verifica tu correo electrónico antes de iniciar sesión.';
+            } else if (data['error'] == 'Cuenta deshabilitada') {
+              errorMsg = 'Esta cuenta ha sido deshabilitada. Contacta al soporte.';
+            }
+          } else if (data['message'] != null) {
             errorMsg = data['message'];
           }
-        } catch (_) {}
+        } catch (e) {
+          print('Error al procesar la respuesta del servidor: $e');
+        }
         if (!mounted) return;
         setState(() {
           _errorMessage = errorMsg;
         });
+        
+        // Mostrar alerta de error de login
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('Error de inicio de sesión'),
+              content: Text(errorMsg),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('Aceptar'),
+                ),
+              ],
+            );
+          },
+        );
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Error: \\${e.toString()}';
+        _errorMessage = 'Error de conexión: ${e.toString()}';
       });
+      // Mostrar alerta de error de conexión
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Error de conexión'),
+            content: Text('No se pudo conectar con el servidor. Verifica tu conexión a internet e intenta nuevamente.\n\nDetalle: ${e.toString()}'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Aceptar'),
+              ),
+            ],
+          );
+        },
+      );
     } finally {
       if (mounted) {
         setState(() {
